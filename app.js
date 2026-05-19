@@ -27,7 +27,38 @@ let state = {
   editId: null,
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Number Formatting ─────────────────────────────────────────────────────────
+function toRaw(str) {
+  // Hapus semua titik, ambil angka saja
+  return parseInt(str.replace(/\./g, '').replace(/\D/g, '')) || 0;
+}
+
+function toFormatted(val) {
+  // Format angka dengan titik setiap 3 digit
+  if (!val && val !== 0) return '';
+  return val.toLocaleString('id-ID');
+}
+
+function attachFormatter(inputEl) {
+  inputEl.addEventListener('input', () => {
+    const raw = toRaw(inputEl.value);
+    const pos = inputEl.selectionStart;
+    const prevLen = inputEl.value.length;
+    inputEl.value = raw > 0 ? toFormatted(raw) : '';
+    // Jaga posisi kursor tetap wajar
+    const newLen = inputEl.value.length;
+    const diff = newLen - prevLen;
+    try { inputEl.setSelectionRange(pos + diff, pos + diff); } catch {}
+  });
+  // Hanya izinkan angka & titik
+  inputEl.addEventListener('keydown', (e) => {
+    const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End'];
+    if (allowed.includes(e.key)) return;
+    if (!/^\d$/.test(e.key)) e.preventDefault();
+  });
+}
+
+
 const kunci = () => `${state.tahun}-${state.bulan}`;
 const gaji  = () => state.gajiMap[kunci()] || 0;
 const items = () => state.pengeluaranMap[kunci()] || [];
@@ -250,7 +281,7 @@ function renderSummary() {
   document.getElementById('total-sisa').textContent = fmt(Math.abs(sisa));
   document.getElementById('total-sisa').className = `font-display font-bold text-base ${sisa >= 0 ? 'text-hijau-600 dark:text-hijau-400' : 'text-red-500'}`;
   document.getElementById('bar-max').textContent = fmt(g);
-  document.getElementById('input-gaji').value = g > 0 ? g : '';
+  document.getElementById('input-gaji').value = g > 0 ? toFormatted(g) : '';
 
   // Status
   const statusEl = document.getElementById('status-label');
@@ -284,7 +315,7 @@ function renderAll() {
 // ── Actions ───────────────────────────────────────────────────────────────────
 function tambahItem() {
   const nama = document.getElementById('form-nama').value.trim();
-  const jumlah = parseInt(document.getElementById('form-jumlah').value) || 0;
+  const jumlah = toRaw(document.getElementById('form-jumlah').value);
   const kategori = document.getElementById('form-kategori').value || 'Lainnya';
 
   if (!nama) { showToast('⚠️ Nama pengeluaran kosong!'); return; }
@@ -328,7 +359,7 @@ function bukaModal(id) {
   if (!item) return;
   state.editId = id;
   document.getElementById('edit-nama').value = item.nama;
-  document.getElementById('edit-jumlah').value = item.jumlah;
+  document.getElementById('edit-jumlah').value = toFormatted(item.jumlah);
   document.getElementById('edit-kategori').value = item.kategori;
   document.getElementById('modal-backdrop').classList.remove('hidden');
   document.getElementById('edit-nama').focus();
@@ -341,7 +372,7 @@ function tutupModal() {
 
 function simpanEdit() {
   const nama = document.getElementById('edit-nama').value.trim();
-  const jumlah = parseInt(document.getElementById('edit-jumlah').value) || 0;
+  const jumlah = toRaw(document.getElementById('edit-jumlah').value);
   const kategori = document.getElementById('edit-kategori').value || 'Lainnya';
 
   if (!nama || jumlah <= 0) { showToast('⚠️ Data tidak lengkap!'); return; }
@@ -376,7 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Gaji
   document.getElementById('btn-simpan-gaji').addEventListener('click', () => {
-    const v = parseInt(document.getElementById('input-gaji').value) || 0;
+    const v = toRaw(document.getElementById('input-gaji').value);
     state.gajiMap[kunci()] = v;
     save();
     renderSummary();
@@ -386,6 +417,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('input-gaji').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('btn-simpan-gaji').click();
   });
+  attachFormatter(document.getElementById('input-gaji'));
+  attachFormatter(document.getElementById('form-jumlah'));
+  attachFormatter(document.getElementById('edit-jumlah'));
 
   // Tambah pengeluaran
   document.getElementById('btn-tambah').addEventListener('click', tambahItem);

@@ -102,9 +102,39 @@
 
     /* Input focus ring hijau */
     .inp {
-      @apply w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base outline-none
-             focus:border-hijau-500 focus:ring-2 focus:ring-hijau-200
-             dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-hijau-900;
+      width: 100%;
+      display: block;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      padding: 12px 16px;
+      font-size: 16px;
+      outline: none;
+      color: #1f2937;
+      box-sizing: border-box;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .inp:focus {
+      border-color: #22c55e;
+      box-shadow: 0 0 0 3px rgba(34,197,94,0.15);
+    }
+    .dark .inp {
+      background: #1f2937;
+      border-color: #374151;
+      color: #f9fafb;
+    }
+    .dark .inp:focus {
+      box-shadow: 0 0 0 3px rgba(22,163,74,0.2);
+    }
+    .inp.pl-10 { padding-left: 40px; }
+
+    /* Panah custom untuk select/dropdown */
+    select.inp {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 40px;
     }
 
     /* Dark mode body bg */
@@ -146,7 +176,7 @@
     <div class="flex items-center gap-3">
       <span class="text-2xl font-bold text-hijau-600 dark:text-hijau-400 font-display">Rp</span>
       <input id="input-gaji"
-        type="number" inputmode="numeric" placeholder="0"
+        type="text" inputmode="numeric" placeholder="0"
         class="flex-1 text-2xl font-bold bg-transparent outline-none text-gray-800 dark:text-white placeholder-gray-300"
         style="min-width:0"
       />
@@ -188,6 +218,37 @@
     </div>
   </section>
 
+  <!-- FORM TAMBAH PENGELUARAN -->
+  <section class="card p-5">
+    <p class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">Tambah Pengeluaran</p>
+    <div class="flex flex-col gap-3">
+      <input id="form-nama" type="text" placeholder="Nama pengeluaran (misal: Makan siang)"
+        class="inp w-full block" autocomplete="off" />
+      <div class="relative w-full">
+        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">Rp</span>
+        <input id="form-jumlah" type="text" inputmode="numeric" placeholder="Jumlah"
+          class="inp pl-10 w-full block" />
+      </div>
+      <select id="form-kategori" class="inp w-full block">
+        <option value="">Kategori</option>
+        <option value="Makan & Minum">🍽️ Makan</option>
+        <option value="Transport">🚗 Transport</option>
+        <option value="Belanja">🛒 Belanja</option>
+        <option value="Tagihan">💡 Tagihan</option>
+        <option value="Hiburan">🎮 Hiburan</option>
+        <option value="Kesehatan">💊 Kesehatan</option>
+        <option value="Pendidikan">📚 Pendidikan</option>
+        <option value="Tabungan">🏦 Tabungan</option>
+        <option value="Lainnya">📦 Lainnya</option>
+      </select>
+      <button id="btn-tambah"
+        class="w-full h-12 rounded-xl bg-hijau-600 text-white font-bold text-base active:bg-hijau-700 hover:bg-hijau-700 flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        Tambah Pengeluaran
+      </button>
+    </div>
+  </section>
+
   <!-- PIE CHART -->
   <section class="card p-5">
     <p class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">Distribusi Kategori</p>
@@ -195,39 +256,6 @@
       <canvas id="pieChart"></canvas>
     </div>
     <p id="chart-empty" class="text-center text-gray-400 text-sm mt-4 hidden">Belum ada data pengeluaran</p>
-  </section>
-
-  <!-- FORM TAMBAH PENGELUARAN -->
-  <section class="card p-5">
-    <p class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">Tambah Pengeluaran</p>
-    <div class="space-y-3">
-      <input id="form-nama" type="text" placeholder="Nama pengeluaran (misal: Makan siang)"
-        class="inp" autocomplete="off" />
-      <div class="flex gap-3">
-        <div class="relative flex-1">
-          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">Rp</span>
-          <input id="form-jumlah" type="number" inputmode="numeric" placeholder="Jumlah"
-            class="inp pl-10" />
-        </div>
-        <select id="form-kategori" class="inp flex-1">
-          <option value="">Kategori</option>
-          <option value="Makan & Minum">🍽️ Makan</option>
-          <option value="Transport">🚗 Transport</option>
-          <option value="Belanja">🛒 Belanja</option>
-          <option value="Tagihan">💡 Tagihan</option>
-          <option value="Hiburan">🎮 Hiburan</option>
-          <option value="Kesehatan">💊 Kesehatan</option>
-          <option value="Pendidikan">📚 Pendidikan</option>
-          <option value="Tabungan">🏦 Tabungan</option>
-          <option value="Lainnya">📦 Lainnya</option>
-        </select>
-      </div>
-      <button id="btn-tambah"
-        class="w-full h-12 rounded-xl bg-hijau-600 text-white font-bold text-base active:bg-hijau-700 hover:bg-hijau-700 flex items-center justify-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-        Tambah Pengeluaran
-      </button>
-    </div>
   </section>
 
   <!-- DAFTAR PENGELUARAN -->
@@ -266,7 +294,7 @@
       <input id="edit-nama" type="text" placeholder="Nama" class="inp" />
       <div class="relative">
         <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">Rp</span>
-        <input id="edit-jumlah" type="number" inputmode="numeric" placeholder="Jumlah" class="inp pl-10" />
+        <input id="edit-jumlah" type="text" inputmode="numeric" placeholder="Jumlah" class="inp pl-10" />
       </div>
       <select id="edit-kategori" class="inp">
         <option value="">Kategori</option>
