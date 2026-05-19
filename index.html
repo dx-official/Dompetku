@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#16a34a" />
+  <meta name="description" content="DompetKu – Aplikasi budgeting bulanan untuk masyarakat Indonesia" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="DompetKu" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>" />
+  <title>DompetKu – Budget Bulanan</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            hijau: {
+              50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0',
+              300: '#86efac', 400: '#4ade80', 500: '#22c55e',
+              600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d'
+            }
+          },
+          fontFamily: {
+            display: ['"Plus Jakarta Sans"', 'sans-serif'],
+            body: ['"DM Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { -webkit-tap-highlight-color: transparent; }
+    body { font-family: 'DM Sans', sans-serif; }
+    h1,h2,h3,.font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+    /* Smooth transitions for dark mode */
+    body, .card, input, select { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #16a34a; border-radius: 99px; }
+
+    /* Number input – hilangkan spinner */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+    /* Animasi masuk item */
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-in { animation: slideIn 0.25s ease-out both; }
+
+    /* Toast */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .toast { animation: fadeUp 0.3s ease-out both; }
+
+    /* Progress bar fill */
+    .bar-fill { transition: width 0.6s cubic-bezier(.4,0,.2,1); }
+
+    /* Chip warna kategori */
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+
+    /* Card */
+    .card {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+    }
+    .dark .card {
+      background: #1e2530;
+      box-shadow: 0 1px 4px rgba(0,0,0,.3);
+    }
+
+    /* Sticky header */
+    #app-header {
+      position: sticky; top: 0; z-index: 40;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    /* Fab button bounce */
+    @keyframes pop { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+    .fab:active { animation: pop .15s ease; }
+
+    /* Chart container – biar tidak overflow di mobile */
+    #chartContainer { position: relative; height: 240px; max-width: 300px; margin: 0 auto; }
+
+    /* Modal backdrop */
+    #modal-backdrop { backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+
+    /* Input focus ring hijau */
+    .inp {
+      @apply w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base outline-none
+             focus:border-hijau-500 focus:ring-2 focus:ring-hijau-200
+             dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-hijau-900;
+    }
+
+    /* Dark mode body bg */
+    .dark body, .dark #root { background-color: #111827; }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen">
+
+<!-- ========== HEADER ========== -->
+<header id="app-header" class="bg-white/90 dark:bg-gray-900/90 border-b border-gray-100 dark:border-gray-800">
+  <div class="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="text-2xl">💰</span>
+      <span class="font-display text-lg font-bold text-hijau-700 dark:text-hijau-400">DompetKu</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <!-- Bulan & Tahun -->
+      <button id="btn-prev-month" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200" aria-label="Bulan sebelumnya">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <span id="label-bulan" class="font-semibold text-sm min-w-[90px] text-center">Mei 2025</span>
+      <button id="btn-next-month" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200" aria-label="Bulan berikutnya">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <!-- Dark mode toggle -->
+      <button id="btn-dark" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Toggle dark mode">
+        <span id="icon-dark">🌙</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ========== MAIN ========== -->
+<main class="max-w-lg mx-auto px-4 pb-32 pt-4 space-y-4">
+
+  <!-- KARTU GAJI -->
+  <section class="card p-5">
+    <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Gaji Bersih Bulan Ini</p>
+    <div class="flex items-center gap-3">
+      <span class="text-2xl font-bold text-hijau-600 dark:text-hijau-400 font-display">Rp</span>
+      <input id="input-gaji"
+        type="number" inputmode="numeric" placeholder="0"
+        class="flex-1 text-2xl font-bold bg-transparent outline-none text-gray-800 dark:text-white placeholder-gray-300"
+        style="min-width:0"
+      />
+      <button id="btn-simpan-gaji"
+        class="shrink-0 h-11 px-5 rounded-xl bg-hijau-600 text-white font-semibold text-sm active:bg-hijau-700 hover:bg-hijau-700">
+        Simpan
+      </button>
+    </div>
+  </section>
+
+  <!-- RINGKASAN -->
+  <section class="grid grid-cols-3 gap-3">
+    <div class="card p-4 text-center">
+      <p class="text-xs text-gray-400 font-semibold mb-1">Pengeluaran</p>
+      <p id="total-keluar" class="font-display font-bold text-base text-red-500">Rp 0</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-xs text-gray-400 font-semibold mb-1">Sisa</p>
+      <p id="total-sisa" class="font-display font-bold text-base text-hijau-600">Rp 0</p>
+    </div>
+    <div class="card p-4 text-center">
+      <p class="text-xs text-gray-400 font-semibold mb-1">Status</p>
+      <p id="status-label" class="font-display font-bold text-base">–</p>
+    </div>
+  </section>
+
+  <!-- PROGRESS BAR -->
+  <section class="card p-5">
+    <div class="flex justify-between items-center mb-3">
+      <p class="text-sm font-semibold text-gray-600 dark:text-gray-300">Penggunaan Budget</p>
+      <span id="pct-label" class="text-sm font-bold text-hijau-600 dark:text-hijau-400">0%</span>
+    </div>
+    <div class="h-4 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+      <div id="progress-bar" class="h-full bar-fill rounded-full bg-hijau-500" style="width:0%"></div>
+    </div>
+    <div class="flex justify-between mt-2 text-xs text-gray-400">
+      <span>Rp 0</span>
+      <span id="bar-max">Rp 0</span>
+    </div>
+  </section>
+
+  <!-- PIE CHART -->
+  <section class="card p-5">
+    <p class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">Distribusi Kategori</p>
+    <div id="chartContainer">
+      <canvas id="pieChart"></canvas>
+    </div>
+    <p id="chart-empty" class="text-center text-gray-400 text-sm mt-4 hidden">Belum ada data pengeluaran</p>
+  </section>
+
+  <!-- FORM TAMBAH PENGELUARAN -->
+  <section class="card p-5">
+    <p class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-4">Tambah Pengeluaran</p>
+    <div class="space-y-3">
+      <input id="form-nama" type="text" placeholder="Nama pengeluaran (misal: Makan siang)"
+        class="inp" autocomplete="off" />
+      <div class="flex gap-3">
+        <div class="relative flex-1">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">Rp</span>
+          <input id="form-jumlah" type="number" inputmode="numeric" placeholder="Jumlah"
+            class="inp pl-10" />
+        </div>
+        <select id="form-kategori" class="inp flex-1">
+          <option value="">Kategori</option>
+          <option value="Makan & Minum">🍽️ Makan</option>
+          <option value="Transport">🚗 Transport</option>
+          <option value="Belanja">🛒 Belanja</option>
+          <option value="Tagihan">💡 Tagihan</option>
+          <option value="Hiburan">🎮 Hiburan</option>
+          <option value="Kesehatan">💊 Kesehatan</option>
+          <option value="Pendidikan">📚 Pendidikan</option>
+          <option value="Tabungan">🏦 Tabungan</option>
+          <option value="Lainnya">📦 Lainnya</option>
+        </select>
+      </div>
+      <button id="btn-tambah"
+        class="w-full h-12 rounded-xl bg-hijau-600 text-white font-bold text-base active:bg-hijau-700 hover:bg-hijau-700 flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        Tambah Pengeluaran
+      </button>
+    </div>
+  </section>
+
+  <!-- DAFTAR PENGELUARAN -->
+  <section class="card p-5">
+    <div class="flex items-center justify-between mb-4">
+      <p class="text-sm font-semibold text-gray-600 dark:text-gray-300">Daftar Pengeluaran</p>
+      <button id="btn-hapus-semua" class="text-xs text-red-400 hover:text-red-600 font-semibold hidden">Hapus Semua</button>
+    </div>
+
+    <!-- Filter Kategori -->
+    <div id="filter-chips" class="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide" style="scrollbar-width:none;-ms-overflow-style:none">
+      <button data-filter="semua" class="filter-chip shrink-0 h-8 px-4 rounded-full text-xs font-semibold bg-hijau-600 text-white">Semua</button>
+    </div>
+
+    <!-- List -->
+    <div id="list-pengeluaran" class="space-y-3">
+      <p id="empty-state" class="text-center text-gray-400 text-sm py-8">Belum ada pengeluaran bulan ini 🎉</p>
+    </div>
+  </section>
+
+</main>
+
+<!-- ========== FAB (tambah cepat) ========== -->
+<button id="fab" class="fab fixed bottom-6 right-4 w-14 h-14 rounded-full bg-hijau-600 text-white shadow-xl flex items-center justify-center z-30 active:bg-hijau-700" aria-label="Tambah pengeluaran">
+  <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+</button>
+
+<!-- ========== MODAL EDIT ========== -->
+<div id="modal-backdrop" class="hidden fixed inset-0 bg-black/40 z-50 flex items-end justify-center p-0">
+  <div id="modal" class="card w-full max-w-lg rounded-b-none p-6 pb-8 animate-in">
+    <div class="flex items-center justify-between mb-5">
+      <p class="font-display font-bold text-lg">Edit Pengeluaran</p>
+      <button id="modal-close" class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500">✕</button>
+    </div>
+    <div class="space-y-3">
+      <input id="edit-nama" type="text" placeholder="Nama" class="inp" />
+      <div class="relative">
+        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">Rp</span>
+        <input id="edit-jumlah" type="number" inputmode="numeric" placeholder="Jumlah" class="inp pl-10" />
+      </div>
+      <select id="edit-kategori" class="inp">
+        <option value="">Kategori</option>
+        <option value="Makan & Minum">🍽️ Makan & Minum</option>
+        <option value="Transport">🚗 Transport</option>
+        <option value="Belanja">🛒 Belanja</option>
+        <option value="Tagihan">💡 Tagihan</option>
+        <option value="Hiburan">🎮 Hiburan</option>
+        <option value="Kesehatan">💊 Kesehatan</option>
+        <option value="Pendidikan">📚 Pendidikan</option>
+        <option value="Tabungan">🏦 Tabungan</option>
+        <option value="Lainnya">📦 Lainnya</option>
+      </select>
+      <button id="btn-simpan-edit" class="w-full h-12 rounded-xl bg-hijau-600 text-white font-bold text-base active:bg-hijau-700">Simpan Perubahan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== TOAST ========== -->
+<div id="toast" class="toast hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-semibold px-5 py-3 rounded-full shadow-xl pointer-events-none"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
