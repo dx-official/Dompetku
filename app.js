@@ -328,8 +328,7 @@ function renderSummary() {
   sisaEl.textContent = fmt(Math.abs(sisa));
   sisaEl.className = `font-display font-bold text-base ${sisa >= 0 ? 'text-hijau-600 dark:text-hijau-400' : 'text-red-500'}`;
 
-  document.getElementById('bar-keluar').textContent = fmt(keluar);
-  document.getElementById('bar-max').textContent = fmt(g);
+
 
   // Hanya update input gaji saat halaman pertama load (jika input kosong)
   const gajiInput = document.getElementById('input-gaji');
