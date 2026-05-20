@@ -32,7 +32,7 @@ let state = {
 const kunci      = () => `${state.tahun}-${state.bulan}`;
 const gaji       = () => state.gajiMap[kunci()] || 0;
 const items      = () => state.pengeluaranMap[kunci()] || [];
-const totalKeluar= () => items().reduce((s, x) => s + x.jumlah, 0);
+const totalKeluar= () => items().reduce((s, x) => s + Number(x.jumlah), 0);
 const uid        = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 function fmt(n) {
@@ -363,7 +363,7 @@ function tambahItem() {
 
   const k = kunci();
   if (!state.pengeluaranMap[k]) state.pengeluaranMap[k] = [];
-  state.pengeluaranMap[k].push({ id: uid(), nama, jumlah, kategori, ts: Date.now() });
+  state.pengeluaranMap[k].push({ id: uid(), nama, jumlah: Number(jumlah), kategori, ts: Date.now() });
 
   // Reset form
   namaEl.value     = '';
@@ -422,7 +422,7 @@ function simpanEdit() {
   const idx = (state.pengeluaranMap[k] || []).findIndex(x => x.id === state.editId);
   if (idx !== -1) {
     state.pengeluaranMap[k][idx] = {
-      ...state.pengeluaranMap[k][idx], nama, jumlah, kategori
+      ...state.pengeluaranMap[k][idx], nama, jumlah: Number(jumlah), kategori
     };
   }
 
@@ -458,17 +458,20 @@ document.addEventListener('DOMContentLoaded', () => {
   attachNumericOnly(document.getElementById('form-jumlah'));
   attachNumericOnly(document.getElementById('edit-jumlah'));
 
-  // Gaji – simpan
-  document.getElementById('btn-simpan-gaji').addEventListener('click', () => {
+  // Gaji – simpan saat klik tombol atau saat pindah fokus (blur)
+  const simpanGaji = () => {
     const v = toRaw(document.getElementById('input-gaji').value);
-    state.gajiMap[kunci()] = v;
+    if (v === state.gajiMap[kunci()]) return; // tidak ada perubahan
+    state.gajiMap[kunci()] = Number(v);
     save();
     renderSummary();
     renderChart();
     showToast('💰 Gaji disimpan!');
-  });
+  };
+  document.getElementById('btn-simpan-gaji').addEventListener('click', simpanGaji);
+  document.getElementById('input-gaji').addEventListener('blur', simpanGaji);
   document.getElementById('input-gaji').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('btn-simpan-gaji').click();
+    if (e.key === 'Enter') { simpanGaji(); document.getElementById('input-gaji').blur(); }
   });
 
   // Tambah pengeluaran
