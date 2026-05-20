@@ -325,7 +325,7 @@ function renderSummary() {
   document.getElementById('total-keluar').textContent = fmt(keluar);
 
   const sisaEl = document.getElementById('total-sisa');
-  sisaEl.textContent = fmt(Math.abs(sisa));
+  sisaEl.textContent = (sisa < 0 ? '−' : '') + fmt(Math.abs(sisa));
   sisaEl.className = `font-display font-bold text-base ${sisa >= 0 ? 'text-hijau-600 dark:text-hijau-400' : 'text-red-500'}`;
 
 
