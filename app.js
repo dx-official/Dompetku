@@ -1,7 +1,7 @@
-/* ===== DompetKu – app.js ===== */
+/* ===== DompetKu – app.js (fixed) ===== */
 'use strict';
 
-// ── Konstanta warna kategori ──────────────────────────────────────────────────
+// ── Konstanta ─────────────────────────────────────────────────────────────────
 const KATEGORI_COLOR = {
   'Makan & Minum': '#22c55e',
   'Transport':     '#3b82f6',
@@ -14,65 +14,82 @@ const KATEGORI_COLOR = {
   'Lainnya':       '#94a3b8',
 };
 
-const BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli',
+                  'Agustus','September','Oktober','November','Desember'];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let state = {
   bulan: new Date().getMonth(),
   tahun: new Date().getFullYear(),
-  gajiMap: {},      // { "2025-5": 5000000 }
-  pengeluaranMap: {}, // { "2025-5": [{id, nama, jumlah, kategori, ts}] }
+  gajiMap: {},
+  pengeluaranMap: {},
   darkMode: false,
   filterKategori: 'semua',
   editId: null,
 };
 
-// ── Number Formatting ─────────────────────────────────────────────────────────
-function toRaw(str) {
-  // Hapus semua titik, ambil angka saja
-  return parseInt(str.replace(/\./g, '').replace(/\D/g, '')) || 0;
-}
-
-function toFormatted(val) {
-  // Format angka dengan titik setiap 3 digit
-  if (!val && val !== 0) return '';
-  return val.toLocaleString('id-ID');
-}
-
-function attachFormatter(inputEl) {
-  inputEl.addEventListener('input', () => {
-    const raw = toRaw(inputEl.value);
-    const pos = inputEl.selectionStart;
-    const prevLen = inputEl.value.length;
-    inputEl.value = raw > 0 ? toFormatted(raw) : '';
-    // Jaga posisi kursor tetap wajar
-    const newLen = inputEl.value.length;
-    const diff = newLen - prevLen;
-    try { inputEl.setSelectionRange(pos + diff, pos + diff); } catch {}
-  });
-  // Hanya izinkan angka & titik
-  inputEl.addEventListener('keydown', (e) => {
-    const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End'];
-    if (allowed.includes(e.key)) return;
-    if (!/^\d$/.test(e.key)) e.preventDefault();
-  });
-}
-
-
-const kunci = () => `${state.tahun}-${state.bulan}`;
-const gaji  = () => state.gajiMap[kunci()] || 0;
-const items = () => state.pengeluaranMap[kunci()] || [];
-const totalKeluar = () => items().reduce((s, x) => s + x.jumlah, 0);
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const kunci      = () => `${state.tahun}-${state.bulan}`;
+const gaji       = () => state.gajiMap[kunci()] || 0;
+const items      = () => state.pengeluaranMap[kunci()] || [];
+const totalKeluar= () => items().reduce((s, x) => s + x.jumlah, 0);
+const uid        = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 function fmt(n) {
   if (n >= 1_000_000) return 'Rp ' + (n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1) + ' jt';
   return 'Rp ' + n.toLocaleString('id-ID');
 }
-function fmtFull(n) {
-  return 'Rp ' + n.toLocaleString('id-ID');
+function fmtFull(n) { return 'Rp ' + n.toLocaleString('id-ID'); }
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+// ── Number Formatting (tanpa side-effect ke state/render) ────────────────────
+function toRaw(str) {
+  if (!str) return 0;
+  return parseInt(String(str).replace(/\./g, '').replace(/\D/g, ''), 10) || 0;
+}
+function toFormatted(n) {
+  if (!n) return '';
+  return Number(n).toLocaleString('id-ID');
+}
+
+// Flag agar renderSummary tidak trigger formatter
+let _settingGaji = false;
+
+function setGajiInput(val) {
+  _settingGaji = true;
+  document.getElementById('input-gaji').value = val > 0 ? toFormatted(val) : '';
+  _settingGaji = false;
+}
+
+// Pasang formatter angka ke sebuah input (hanya input event, tidak keydown)
+function attachFormatter(el) {
+  el.addEventListener('input', function() {
+    if (_settingGaji && el.id === 'input-gaji') return;
+    const raw = toRaw(this.value);
+    // Simpan posisi kursor
+    const start = this.selectionStart;
+    const oldLen = this.value.length;
+    this.value = raw > 0 ? toFormatted(raw) : '';
+    const newLen = this.value.length;
+    // Sesuaikan kursor
+    const pos = Math.max(0, start + (newLen - oldLen));
+    try { this.setSelectionRange(pos, pos); } catch(_) {}
+  });
+}
+
+// Blokir input non-angka via keydown (pisah dari formatter)
+function attachNumericOnly(el) {
+  el.addEventListener('keydown', function(e) {
+    // Izinkan: kontrol, angka
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const passthrough = ['Backspace','Delete','ArrowLeft','ArrowRight',
+                         'ArrowUp','ArrowDown','Tab','Home','End','Enter'];
+    if (passthrough.includes(e.key)) return;
+    if (!/^\d$/.test(e.key)) e.preventDefault();
+  });
+}
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 function save() {
@@ -88,10 +105,10 @@ function load() {
     const raw = localStorage.getItem('dk_state');
     if (!raw) return;
     const saved = JSON.parse(raw);
-    state.gajiMap = saved.gajiMap || {};
+    state.gajiMap        = saved.gajiMap        || {};
     state.pengeluaranMap = saved.pengeluaranMap || {};
-    state.darkMode = saved.darkMode || false;
-  } catch {}
+    state.darkMode       = saved.darkMode       || false;
+  } catch(_) {}
 }
 
 // ── Dark Mode ─────────────────────────────────────────────────────────────────
@@ -104,42 +121,46 @@ function applyDark() {
 let pieChart = null;
 
 function renderChart() {
-  const ctx = document.getElementById('pieChart').getContext('2d');
-  const data = items();
-  const empty = document.getElementById('chart-empty');
+  const canvas = document.getElementById('pieChart');
+  const ctx    = canvas.getContext('2d');
+  const data   = items();
+  const emptyEl = document.getElementById('chart-empty');
+  const container = document.getElementById('chartContainer');
 
   if (data.length === 0) {
-    empty.classList.remove('hidden');
-    document.getElementById('chartContainer').style.opacity = '0.2';
+    emptyEl.classList.remove('hidden');
+    container.style.opacity = '0.2';
     if (pieChart) { pieChart.destroy(); pieChart = null; }
     return;
   }
 
-  empty.classList.add('hidden');
-  document.getElementById('chartContainer').style.opacity = '1';
+  emptyEl.classList.add('hidden');
+  container.style.opacity = '1';
 
-  // Group by kategori
+  // Kelompokkan per kategori
   const grouped = {};
-  data.forEach(x => {
-    grouped[x.kategori] = (grouped[x.kategori] || 0) + x.jumlah;
-  });
-
+  data.forEach(x => { grouped[x.kategori] = (grouped[x.kategori] || 0) + x.jumlah; });
   const labels = Object.keys(grouped);
   const values = Object.values(grouped);
   const colors = labels.map(l => KATEGORI_COLOR[l] || '#94a3b8');
-
   const isDark = state.darkMode;
 
-  if (pieChart) pieChart.destroy();
+  if (pieChart) { pieChart.destroy(); pieChart = null; }
   pieChart = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels,
-      datasets: [{ data: values, backgroundColor: colors, borderWidth: 2,
-        borderColor: isDark ? '#1e2530' : '#ffffff', hoverOffset: 8 }]
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderWidth: 2,
+        borderColor: isDark ? '#1e2530' : '#ffffff',
+        hoverOffset: 8,
+      }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true,
+      maintainAspectRatio: false,
       cutout: '65%',
       plugins: {
         legend: {
@@ -153,8 +174,8 @@ function renderChart() {
         tooltip: {
           callbacks: {
             label: ctx => {
-              const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
-              const pct = ((ctx.parsed / total) * 100).toFixed(1);
+              const tot = ctx.dataset.data.reduce((a,b)=>a+b,0);
+              const pct = ((ctx.parsed / tot) * 100).toFixed(1);
               return `  ${fmtFull(ctx.parsed)} (${pct}%)`;
             }
           }
@@ -164,53 +185,63 @@ function renderChart() {
   });
 }
 
-// ── Filter chips ──────────────────────────────────────────────────────────────
+// ── Filter Chips ──────────────────────────────────────────────────────────────
 function renderFilterChips() {
   const container = document.getElementById('filter-chips');
-  const data = items();
-  const kategoriSet = new Set(data.map(x => x.kategori));
+  const kategoriSet = new Set(items().map(x => x.kategori));
 
-  // Clear, keep "Semua"
-  container.innerHTML = `<button data-filter="semua" class="filter-chip shrink-0 h-8 px-4 rounded-full text-xs font-semibold ${state.filterKategori === 'semua' ? 'bg-hijau-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}">Semua</button>`;
+  container.innerHTML = '';
 
+  // Tombol "Semua"
+  const allBtn = document.createElement('button');
+  allBtn.dataset.filter = 'semua';
+  allBtn.className = `filter-chip shrink-0 h-8 px-4 rounded-full text-xs font-semibold ${
+    state.filterKategori === 'semua' ? 'bg-hijau-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+  }`;
+  allBtn.textContent = 'Semua';
+  container.appendChild(allBtn);
+
+  // Tombol per kategori
   kategoriSet.forEach(k => {
     const active = state.filterKategori === k;
     const btn = document.createElement('button');
     btn.dataset.filter = k;
-    btn.className = `filter-chip shrink-0 h-8 px-4 rounded-full text-xs font-semibold ${active ? 'text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`;
+    btn.className = `filter-chip shrink-0 h-8 px-4 rounded-full text-xs font-semibold ${
+      active ? 'text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+    }`;
     if (active) btn.style.backgroundColor = KATEGORI_COLOR[k] || '#16a34a';
     btn.textContent = k;
     container.appendChild(btn);
   });
 
-  container.querySelectorAll('.filter-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.filterKategori = btn.dataset.filter;
-      renderFilterChips();
-      renderList();
-    });
-  });
+  // Event — pakai event delegation di container (tidak re-attach terus)
+  container.onclick = (e) => {
+    const btn = e.target.closest('.filter-chip');
+    if (!btn) return;
+    state.filterKategori = btn.dataset.filter;
+    renderFilterChips();
+    renderList();
+  };
 }
 
-// ── List pengeluaran ──────────────────────────────────────────────────────────
+// ── List Pengeluaran ──────────────────────────────────────────────────────────
 function renderList() {
-  const container = document.getElementById('list-pengeluaran');
-  const emptyEl = document.getElementById('empty-state');
+  const container     = document.getElementById('list-pengeluaran');
+  const emptyEl       = document.getElementById('empty-state');
   const btnHapusSemua = document.getElementById('btn-hapus-semua');
-  const total = totalKeluar();
-  const g = gaji();
+  const totalK        = totalKeluar();
+  const g             = gaji();
 
-  let data = items();
+  let data = [...items()];
   if (state.filterKategori !== 'semua') {
     data = data.filter(x => x.kategori === state.filterKategori);
   }
-
-  // Sort terbaru dulu
-  data = [...data].sort((a,b) => b.ts - a.ts);
+  data.sort((a, b) => b.ts - a.ts);
 
   if (data.length === 0) {
     emptyEl.classList.remove('hidden');
     btnHapusSemua.classList.add('hidden');
+    // Hapus hanya item-card, bukan emptyEl
     container.querySelectorAll('.item-card').forEach(el => el.remove());
     return;
   }
@@ -218,92 +249,102 @@ function renderList() {
   emptyEl.classList.add('hidden');
   btnHapusSemua.classList.remove('hidden');
 
-  // Build HTML
   container.innerHTML = '';
+
   data.forEach((item, i) => {
-    const pct = g > 0 ? ((item.jumlah / g) * 100).toFixed(1) : 0;
-    const barPct = total > 0 ? ((item.jumlah / total) * 100).toFixed(1) : 0;
-    const color = KATEGORI_COLOR[item.kategori] || '#94a3b8';
+    const pctGaji  = g > 0     ? ((item.jumlah / g)      * 100).toFixed(1) : 0;
+    const pctTotal = totalK > 0 ? ((item.jumlah / totalK) * 100).toFixed(1) : 0;
+    const color    = KATEGORI_COLOR[item.kategori] || '#94a3b8';
 
     const div = document.createElement('div');
     div.className = 'item-card animate-in rounded-2xl border border-gray-100 dark:border-gray-700 p-4 bg-white dark:bg-gray-800';
     div.style.animationDelay = `${i * 30}ms`;
+    div.dataset.id = item.id;
     div.innerHTML = `
       <div class="flex items-start justify-between gap-3">
         <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="chip text-white text-xs" style="background:${color}">${item.kategori}</span>
-          </div>
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-xs font-semibold mb-1"
+                style="background:${color}">${escHtml(item.kategori)}</span>
           <p class="font-semibold text-base text-gray-800 dark:text-white truncate">${escHtml(item.nama)}</p>
           <p class="text-hijau-600 dark:text-hijau-400 font-bold mt-0.5">${fmtFull(item.jumlah)}</p>
         </div>
         <div class="text-right shrink-0">
-          <p class="text-xs text-gray-400 mb-2">${pct}% gaji</p>
+          <p class="text-xs text-gray-400 mb-2">${pctGaji}% gaji</p>
           <div class="flex gap-2">
-            <button class="btn-edit w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/40 text-blue-500 flex items-center justify-center" data-id="${item.id}">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            <button class="btn-edit w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/40 text-blue-500 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
             </button>
-            <button class="btn-hapus w-9 h-9 rounded-xl bg-red-50 dark:bg-red-900/40 text-red-400 flex items-center justify-center" data-id="${item.id}">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            <button class="btn-hapus w-9 h-9 rounded-xl bg-red-50 dark:bg-red-900/40 text-red-400 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
             </button>
           </div>
         </div>
       </div>
       <div class="mt-3 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-        <div class="h-full bar-fill rounded-full" style="width:${barPct}%;background:${color}"></div>
+        <div class="h-full bar-fill rounded-full" style="width:${pctTotal}%;background:${color}"></div>
       </div>
-      <p class="text-xs text-gray-400 mt-1">${barPct}% dari total pengeluaran</p>
+      <p class="text-xs text-gray-400 mt-1">${pctTotal}% dari total pengeluaran</p>
     `;
     container.appendChild(div);
   });
 
-  // Events
-  container.querySelectorAll('.btn-hapus').forEach(btn => {
-    btn.addEventListener('click', () => hapusItem(btn.dataset.id));
-  });
-  container.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => bukaModal(btn.dataset.id));
-  });
-}
-
-function escHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  // Event delegation — satu listener untuk semua tombol di list
+  container.onclick = (e) => {
+    const card = e.target.closest('.item-card');
+    if (!card) return;
+    const id = card.dataset.id;
+    if (e.target.closest('.btn-hapus')) hapusItem(id);
+    else if (e.target.closest('.btn-edit')) bukaModal(id);
+  };
 }
 
 // ── Ringkasan ─────────────────────────────────────────────────────────────────
 function renderSummary() {
-  const g = gaji();
+  const g      = gaji();
   const keluar = totalKeluar();
-  const sisa = g - keluar;
-  const pct = g > 0 ? Math.min((keluar / g) * 100, 100) : 0;
+  const sisa   = g - keluar;
+  const pct    = g > 0 ? Math.min((keluar / g) * 100, 100) : 0;
 
   document.getElementById('total-keluar').textContent = fmt(keluar);
-  document.getElementById('total-sisa').textContent = fmt(Math.abs(sisa));
-  document.getElementById('total-sisa').className = `font-display font-bold text-base ${sisa >= 0 ? 'text-hijau-600 dark:text-hijau-400' : 'text-red-500'}`;
+
+  const sisaEl = document.getElementById('total-sisa');
+  sisaEl.textContent = fmt(Math.abs(sisa));
+  sisaEl.className = `font-display font-bold text-base ${sisa >= 0 ? 'text-hijau-600 dark:text-hijau-400' : 'text-red-500'}`;
+
   document.getElementById('bar-max').textContent = fmt(g);
-  document.getElementById('input-gaji').value = g > 0 ? toFormatted(g) : '';
+
+  // Set nilai input gaji tanpa trigger formatter
+  setGajiInput(g);
 
   // Status
   const statusEl = document.getElementById('status-label');
-  if (g === 0) { statusEl.textContent = '–'; statusEl.className = 'font-display font-bold text-base text-gray-400'; }
-  else if (sisa > 0) { statusEl.textContent = '✅ Sisa'; statusEl.className = 'font-display font-bold text-base text-hijau-600 dark:text-hijau-400'; }
-  else if (sisa === 0) { statusEl.textContent = '⚖️ Pas'; statusEl.className = 'font-display font-bold text-base text-amber-500'; }
-  else { statusEl.textContent = '🚨 Kurang'; statusEl.className = 'font-display font-bold text-base text-red-500'; }
+  if      (g === 0)    { statusEl.textContent = '–';         statusEl.className = 'font-display font-bold text-base text-gray-400'; }
+  else if (sisa > 0)   { statusEl.textContent = '✅ Sisa';   statusEl.className = 'font-display font-bold text-base text-hijau-600 dark:text-hijau-400'; }
+  else if (sisa === 0) { statusEl.textContent = '⚖️ Pas';    statusEl.className = 'font-display font-bold text-base text-amber-500'; }
+  else                 { statusEl.textContent = '🚨 Kurang'; statusEl.className = 'font-display font-bold text-base text-red-500'; }
 
   // Progress bar
   const bar = document.getElementById('progress-bar');
   bar.style.width = pct + '%';
   bar.className = `h-full bar-fill rounded-full ${pct >= 100 ? 'bg-red-500' : pct >= 75 ? 'bg-amber-500' : 'bg-hijau-500'}`;
-  document.getElementById('pct-label').textContent = pct.toFixed(0) + '%';
-  document.getElementById('pct-label').className = `text-sm font-bold ${pct >= 100 ? 'text-red-500' : pct >= 75 ? 'text-amber-500' : 'text-hijau-600 dark:text-hijau-400'}`;
+
+  const pctEl = document.getElementById('pct-label');
+  pctEl.textContent = pct.toFixed(0) + '%';
+  pctEl.className = `text-sm font-bold ${pct >= 100 ? 'text-red-500' : pct >= 75 ? 'text-amber-500' : 'text-hijau-600 dark:text-hijau-400'}`;
 }
 
-// ── Header bulan ──────────────────────────────────────────────────────────────
+// ── Header ────────────────────────────────────────────────────────────────────
 function renderHeader() {
   document.getElementById('label-bulan').textContent = `${BULAN_ID[state.bulan]} ${state.tahun}`;
 }
 
-// ── Render all ────────────────────────────────────────────────────────────────
+// ── Render All ────────────────────────────────────────────────────────────────
 function renderAll() {
   renderHeader();
   renderSummary();
@@ -314,11 +355,15 @@ function renderAll() {
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 function tambahItem() {
-  const nama = document.getElementById('form-nama').value.trim();
-  const jumlah = toRaw(document.getElementById('form-jumlah').value);
-  const kategori = document.getElementById('form-kategori').value || 'Lainnya';
+  const namaEl     = document.getElementById('form-nama');
+  const jumlahEl   = document.getElementById('form-jumlah');
+  const kategoriEl = document.getElementById('form-kategori');
 
-  if (!nama) { showToast('⚠️ Nama pengeluaran kosong!'); return; }
+  const nama    = namaEl.value.trim();
+  const jumlah  = toRaw(jumlahEl.value);
+  const kategori= kategoriEl.value || 'Lainnya';
+
+  if (!nama)       { showToast('⚠️ Nama pengeluaran kosong!');    return; }
   if (jumlah <= 0) { showToast('⚠️ Jumlah harus lebih dari 0!'); return; }
 
   const k = kunci();
@@ -326,12 +371,12 @@ function tambahItem() {
   state.pengeluaranMap[k].push({ id: uid(), nama, jumlah, kategori, ts: Date.now() });
 
   // Reset form
-  document.getElementById('form-nama').value = '';
-  document.getElementById('form-jumlah').value = '';
-  document.getElementById('form-kategori').value = '';
+  namaEl.value     = '';
+  jumlahEl.value   = '';
+  kategoriEl.value = '';
 
-  save();
   state.filterKategori = 'semua';
+  save();
   renderAll();
   showToast('✅ Pengeluaran ditambahkan!');
 }
@@ -347,8 +392,8 @@ function hapusItem(id) {
 function hapusSemua() {
   if (!confirm('Hapus semua pengeluaran bulan ini?')) return;
   state.pengeluaranMap[kunci()] = [];
-  save();
   state.filterKategori = 'semua';
+  save();
   renderAll();
   showToast('🗑️ Semua pengeluaran dihapus');
 }
@@ -358,11 +403,11 @@ function bukaModal(id) {
   const item = items().find(x => x.id === id);
   if (!item) return;
   state.editId = id;
-  document.getElementById('edit-nama').value = item.nama;
-  document.getElementById('edit-jumlah').value = toFormatted(item.jumlah);
+  document.getElementById('edit-nama').value     = item.nama;
+  document.getElementById('edit-jumlah').value   = toFormatted(item.jumlah);
   document.getElementById('edit-kategori').value = item.kategori;
   document.getElementById('modal-backdrop').classList.remove('hidden');
-  document.getElementById('edit-nama').focus();
+  setTimeout(() => document.getElementById('edit-nama').focus(), 50);
 }
 
 function tutupModal() {
@@ -371,16 +416,19 @@ function tutupModal() {
 }
 
 function simpanEdit() {
-  const nama = document.getElementById('edit-nama').value.trim();
-  const jumlah = toRaw(document.getElementById('edit-jumlah').value);
-  const kategori = document.getElementById('edit-kategori').value || 'Lainnya';
+  const nama    = document.getElementById('edit-nama').value.trim();
+  const jumlah  = toRaw(document.getElementById('edit-jumlah').value);
+  const kategori= document.getElementById('edit-kategori').value || 'Lainnya';
 
-  if (!nama || jumlah <= 0) { showToast('⚠️ Data tidak lengkap!'); return; }
+  if (!nama)       { showToast('⚠️ Nama tidak boleh kosong!');    return; }
+  if (jumlah <= 0) { showToast('⚠️ Jumlah harus lebih dari 0!'); return; }
 
-  const k = kunci();
+  const k   = kunci();
   const idx = (state.pengeluaranMap[k] || []).findIndex(x => x.id === state.editId);
   if (idx !== -1) {
-    state.pengeluaranMap[k][idx] = { ...state.pengeluaranMap[k][idx], nama, jumlah, kategori };
+    state.pengeluaranMap[k][idx] = {
+      ...state.pengeluaranMap[k][idx], nama, jumlah, kategori
+    };
   }
 
   save();
@@ -399,13 +447,23 @@ function showToast(msg) {
   toastTimer = setTimeout(() => el.classList.add('hidden'), 2200);
 }
 
-// ── Event Listeners ───────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   load();
   applyDark();
   renderAll();
 
-  // Gaji
+  // Formatter angka (input event saja)
+  attachFormatter(document.getElementById('input-gaji'));
+  attachFormatter(document.getElementById('form-jumlah'));
+  attachFormatter(document.getElementById('edit-jumlah'));
+
+  // Blokir non-angka (keydown saja, terpisah)
+  attachNumericOnly(document.getElementById('input-gaji'));
+  attachNumericOnly(document.getElementById('form-jumlah'));
+  attachNumericOnly(document.getElementById('edit-jumlah'));
+
+  // Gaji – simpan
   document.getElementById('btn-simpan-gaji').addEventListener('click', () => {
     const v = toRaw(document.getElementById('input-gaji').value);
     state.gajiMap[kunci()] = v;
@@ -417,12 +475,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('input-gaji').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('btn-simpan-gaji').click();
   });
-  attachFormatter(document.getElementById('input-gaji'));
-  attachFormatter(document.getElementById('form-jumlah'));
-  attachFormatter(document.getElementById('edit-jumlah'));
 
   // Tambah pengeluaran
   document.getElementById('btn-tambah').addEventListener('click', tambahItem);
+  document.getElementById('form-nama').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('form-jumlah').focus();
+  });
   document.getElementById('form-jumlah').addEventListener('keydown', e => {
     if (e.key === 'Enter') tambahItem();
   });
@@ -449,11 +507,10 @@ document.addEventListener('DOMContentLoaded', () => {
     state.darkMode = !state.darkMode;
     applyDark();
     save();
-    // Rerender chart with new colors
     setTimeout(renderChart, 50);
   });
 
-  // FAB scroll & tambah
+  // FAB
   document.getElementById('fab').addEventListener('click', () => {
     document.getElementById('form-nama').scrollIntoView({ behavior: 'smooth', block: 'center' });
     setTimeout(() => document.getElementById('form-nama').focus(), 400);
