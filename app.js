@@ -91,7 +91,16 @@ function attachNumericOnly(el) {
   });
 }
 
-// ── Persistence ───────────────────────────────────────────────────────────────
+// Sinkronisasi gaji dari input ke state (dipanggil sebelum render)
+function syncGaji() {
+  const v = toRaw(document.getElementById('input-gaji').value);
+  if (v > 0 && v !== state.gajiMap[kunci()]) {
+    state.gajiMap[kunci()] = Number(v);
+    save();
+  }
+}
+
+
 function save() {
   localStorage.setItem('dk_state', JSON.stringify({
     gajiMap: state.gajiMap,
@@ -307,6 +316,7 @@ function renderList() {
 
 // ── Ringkasan ─────────────────────────────────────────────────────────────────
 function renderSummary() {
+  syncGaji();
   const g      = gaji();
   const keluar = totalKeluar();
   const sisa   = g - keluar;
@@ -318,10 +328,14 @@ function renderSummary() {
   sisaEl.textContent = fmt(Math.abs(sisa));
   sisaEl.className = `font-display font-bold text-base ${sisa >= 0 ? 'text-hijau-600 dark:text-hijau-400' : 'text-red-500'}`;
 
+  document.getElementById('bar-keluar').textContent = fmt(keluar);
   document.getElementById('bar-max').textContent = fmt(g);
 
-  // Set nilai input gaji tanpa trigger formatter
-  setGajiInput(g);
+  // Hanya update input gaji saat halaman pertama load (jika input kosong)
+  const gajiInput = document.getElementById('input-gaji');
+  if (!gajiInput.dataset.userEditing && g > 0 && !gajiInput.value) {
+    setGajiInput(g);
+  }
 
   // Status
   const statusEl = document.getElementById('status-label');
@@ -353,6 +367,9 @@ function tambahItem() {
   const namaEl     = document.getElementById('form-nama');
   const jumlahEl   = document.getElementById('form-jumlah');
   const kategoriEl = document.getElementById('form-kategori');
+
+  // Pastikan gaji tersinkron dari input sebelum render
+  syncGaji();
 
   const nama    = namaEl.value.trim();
   const jumlah  = toRaw(jumlahEl.value);
@@ -448,20 +465,26 @@ document.addEventListener('DOMContentLoaded', () => {
   applyDark();
   renderAll();
 
-  // Formatter angka (input event saja)
-  attachFormatter(document.getElementById('input-gaji'));
+  const gajiInput = document.getElementById('input-gaji');
+
+  // Set nilai awal dari localStorage
+  if (gaji() > 0) setGajiInput(gaji());
+
+  // Tandai saat user sedang edit (agar renderSummary tidak overwrite)
+  gajiInput.addEventListener('focus', () => { gajiInput.dataset.userEditing = '1'; });
+  gajiInput.addEventListener('blur',  () => { delete gajiInput.dataset.userEditing; });
+
+  // Formatter & blokir non-angka
+  attachFormatter(gajiInput);
   attachFormatter(document.getElementById('form-jumlah'));
   attachFormatter(document.getElementById('edit-jumlah'));
-
-  // Blokir non-angka (keydown saja, terpisah)
-  attachNumericOnly(document.getElementById('input-gaji'));
+  attachNumericOnly(gajiInput);
   attachNumericOnly(document.getElementById('form-jumlah'));
   attachNumericOnly(document.getElementById('edit-jumlah'));
 
-  // Gaji – simpan saat klik tombol atau saat pindah fokus (blur)
+  // Gaji – simpan saat klik tombol atau blur
   const simpanGaji = () => {
-    const v = toRaw(document.getElementById('input-gaji').value);
-    if (v === state.gajiMap[kunci()]) return; // tidak ada perubahan
+    const v = toRaw(gajiInput.value);
     state.gajiMap[kunci()] = Number(v);
     save();
     renderSummary();
@@ -469,9 +492,9 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('💰 Gaji disimpan!');
   };
   document.getElementById('btn-simpan-gaji').addEventListener('click', simpanGaji);
-  document.getElementById('input-gaji').addEventListener('blur', simpanGaji);
-  document.getElementById('input-gaji').addEventListener('keydown', e => {
-    if (e.key === 'Enter') { simpanGaji(); document.getElementById('input-gaji').blur(); }
+  gajiInput.addEventListener('blur', simpanGaji);
+  gajiInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { simpanGaji(); gajiInput.blur(); }
   });
 
   // Tambah pengeluaran
