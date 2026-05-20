@@ -340,14 +340,8 @@ function renderSummary() {
   pctEl.className = `text-sm font-bold ${pct >= 100 ? 'text-red-500' : pct >= 75 ? 'text-amber-500' : 'text-hijau-600 dark:text-hijau-400'}`;
 }
 
-// ── Header ────────────────────────────────────────────────────────────────────
-function renderHeader() {
-  document.getElementById('label-bulan').textContent = `${BULAN_ID[state.bulan]} ${state.tahun}`;
-}
-
 // ── Render All ────────────────────────────────────────────────────────────────
 function renderAll() {
-  renderHeader();
   renderSummary();
   renderFilterChips();
   renderList();
@@ -488,20 +482,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Hapus semua
   document.getElementById('btn-hapus-semua').addEventListener('click', hapusSemua);
-
-  // Navigasi bulan
-  document.getElementById('btn-prev-month').addEventListener('click', () => {
-    if (state.bulan === 0) { state.bulan = 11; state.tahun--; }
-    else state.bulan--;
-    state.filterKategori = 'semua';
-    renderAll();
-  });
-  document.getElementById('btn-next-month').addEventListener('click', () => {
-    if (state.bulan === 11) { state.bulan = 0; state.tahun++; }
-    else state.bulan++;
-    state.filterKategori = 'semua';
-    renderAll();
-  });
 
   // Dark mode
   document.getElementById('btn-dark').addEventListener('click', () => {
