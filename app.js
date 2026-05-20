@@ -238,22 +238,21 @@ function renderList() {
   }
   data.sort((a, b) => b.ts - a.ts);
 
+  // Selalu bersihkan container dulu (emptyEl sudah di luar, aman)
+  container.innerHTML = '';
+
   if (data.length === 0) {
     emptyEl.classList.remove('hidden');
     btnHapusSemua.classList.add('hidden');
-    // Hapus hanya item-card, bukan emptyEl
-    container.querySelectorAll('.item-card').forEach(el => el.remove());
     return;
   }
 
   emptyEl.classList.add('hidden');
   btnHapusSemua.classList.remove('hidden');
 
-  container.innerHTML = '';
-
   data.forEach((item, i) => {
-    const pctGaji  = g > 0     ? ((item.jumlah / g)      * 100).toFixed(1) : 0;
-    const pctTotal = totalK > 0 ? ((item.jumlah / totalK) * 100).toFixed(1) : 0;
+    const pctGaji  = g > 0      ? ((item.jumlah / g)      * 100).toFixed(1) : 0;
+    const pctTotal = totalK > 0  ? ((item.jumlah / totalK) * 100).toFixed(1) : 0;
     const color    = KATEGORI_COLOR[item.kategori] || '#94a3b8';
 
     const div = document.createElement('div');
@@ -271,13 +270,13 @@ function renderList() {
         <div class="text-right shrink-0">
           <p class="text-xs text-gray-400 mb-2">${pctGaji}% gaji</p>
           <div class="flex gap-2">
-            <button class="btn-edit w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/40 text-blue-500 flex items-center justify-center">
+            <button data-action="edit" class="btn-edit w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/40 text-blue-500 flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
               </svg>
             </button>
-            <button class="btn-hapus w-9 h-9 rounded-xl bg-red-50 dark:bg-red-900/40 text-red-400 flex items-center justify-center">
+            <button data-action="hapus" class="btn-hapus w-9 h-9 rounded-xl bg-red-50 dark:bg-red-900/40 text-red-400 flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -294,13 +293,15 @@ function renderList() {
     container.appendChild(div);
   });
 
-  // Event delegation — satu listener untuk semua tombol di list
+  // Event delegation — pakai data-action untuk deteksi tombol
   container.onclick = (e) => {
-    const card = e.target.closest('.item-card');
+    const btn  = e.target.closest('[data-action]');
+    if (!btn) return;
+    const card = btn.closest('.item-card');
     if (!card) return;
-    const id = card.dataset.id;
-    if (e.target.closest('.btn-hapus')) hapusItem(id);
-    else if (e.target.closest('.btn-edit')) bukaModal(id);
+    const id   = card.dataset.id;
+    if (btn.dataset.action === 'hapus') hapusItem(id);
+    else if (btn.dataset.action === 'edit') bukaModal(id);
   };
 }
 
